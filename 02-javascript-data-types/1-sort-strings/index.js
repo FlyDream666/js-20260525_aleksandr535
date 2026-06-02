@@ -5,5 +5,20 @@
  * @returns {string[]}
  */
 export function sortStrings(arr, param = 'asc') {
-
+    // Функция сортировка с опциями
+    const compareFn = (a, b) => {
+        return a.localeCompare(b, ['ru', 'en'], {
+            sensitivity: 'case',
+            caseFirst: 'upper'
+        });
+    };
+    
+    // Сортировка нового массива
+    const sorted = [...arr].sort(compareFn);
+    
+    // Если параметр равен "desc", то возвращаем массив в обратном порядке
+    if (param === 'desc') {
+        return sorted.reverse();
+    }
+    return sorted;
 }
