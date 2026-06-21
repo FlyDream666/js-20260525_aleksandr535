@@ -9,13 +9,14 @@ interface Options {
 }
 
 export default class ColumnChart {
-  data: number[];
-  label: string;
-  value: number;
-  link?: string;
-  formatHeading?: (data: number) => string;
-  element: HTMLElement;
-  chartHeight = 50;
+  private data: number[];
+  private label: string;
+  private value: number;
+  private link?: string;
+  private formatHeading?: (data: number) => string;
+  private _element: HTMLElement | null;
+  private bodyElement: HTMLElement | null;
+  readonly chartHeight = 50;
 
   constructor({ data = [], label = '', value = 0, link, formatHeading }: Options = {}) {
     // Сохраняем параметры в свойства класса
@@ -26,7 +27,15 @@ export default class ColumnChart {
     this.formatHeading = formatHeading;
 
     // Создаем HTML-элемент
-    this.element = this.createElement();
+    this._element = this.createElement();
+    this.bodyElement = this._element.querySelector('[data-element="body"]');
+  }
+
+  get element(): HTMLElement {
+    if (!this._element) {
+      throw new Error('ColumnChart has been destroyed');
+    }
+    return this._element;
   }
 
   private createElement(): HTMLElement {
@@ -51,7 +60,9 @@ export default class ColumnChart {
       </div>
     `;
     
-    return createElement(html);
+    const element = createElement(html);
+    
+    return element;
   }
 
   // Метод для форматирования заголовка
@@ -81,25 +92,38 @@ export default class ColumnChart {
 
   // Метод для обновления данных
   update(data: number[]): void {
-    const chartBody = this.element.querySelector('[data-element="body"]');
-    if (chartBody) {
-      chartBody.innerHTML = this.renderColumns(data);
+    this.data = data;
+    
+    // Обновляем класс loading
+    if (this._element) {
+      if (data.length === 0) {
+        this._element.classList.add('column-chart_loading');
+      } else {
+        this._element.classList.remove('column-chart_loading');
+      }
+    }
+    
+    if (this.bodyElement) {
+      this.bodyElement.innerHTML = this.renderColumns(data);
     }
   }
 
   // Метод для удаления компонента
   remove(): void {
-    this.element.remove();
+    if (this._element) {
+      this._element.remove();
+    }
   }
 
   // Метод для очистки данных
   destroy(): void {
     this.remove();
+    this._element = null;
+    this.bodyElement = null;
     this.data = [];
     this.label = '';
     this.value = 0;
     this.link = undefined;
     this.formatHeading = undefined;
-    this.element = document.createElement('div');
   }
 }
