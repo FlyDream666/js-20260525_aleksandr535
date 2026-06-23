@@ -13,10 +13,11 @@ export function createGetter(path) {
 
         // Проходим по каждому ключу в пути
         for (const key of pathArray) {
+            if (!result || !Object.hasOwn(result, key)) {
+                return undefined;
+            }
             if (Object.hasOwn(result, key)) {
                 result = result[key];
-            } else {
-                return undefined;
             }
         }
 
