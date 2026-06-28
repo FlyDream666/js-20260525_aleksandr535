@@ -137,12 +137,19 @@ export default class DoubleSlider {
     document.removeEventListener('pointermove', this.onMove);
   }
 
-  // Метод очистки компонента и событий
+  // Метод удаления слайдера
+  public remove(): void {
+    if (!this.element) return;
+    this.element.remove();
+  }
+
+  // Метод отписки от всех событий
   public destroy(): void {
     if (!this.element) return;
     this.element.removeEventListener("pointerdown", this.onDown);
     document.removeEventListener('pointermove', this.onMove);
     document.removeEventListener('pointerup', this.onUp);
+    this.remove();
     this.element = null;
     this.activeThumb = null;
     this.innerElement = null;
