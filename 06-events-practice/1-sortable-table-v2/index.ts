@@ -28,21 +28,27 @@ export default class SortableTable {
   public element: HTMLElement | null;
   public bodyElement: HTMLDivElement | null;
   public headerElement: HTMLDivElement | null;
-  public arrowElement: HTMLElement | null;
+  private arrowElement: HTMLElement;
+  private currentSortedColumn: HTMLElement | null = null;
 
   constructor(private headersConfig: SortableTableHeader[] = [], private options: Options = {}) {
     this.element = createElement(this.template);
-    this.bodyElement =  this.element.querySelector<HTMLDivElement>('[data-element="body"]');
-    this.headerElement =  this.element.querySelector<HTMLDivElement>('[data-element="header"]');
+    this.bodyElement = this.element.querySelector<HTMLDivElement>('[data-element="body"]');
+    this.headerElement = this.element.querySelector<HTMLDivElement>('[data-element="header"]');
     this.arrowElement = createElement(`<span data-element="arrow" class="sortable-table__sort-arrow">
                                                 <span class="sort-arrow"></span>
                                             </span>`);
 
-    if(typeof this.options.isSortLocally === 'undefined') {
+    if (typeof this.options.isSortLocally === 'undefined') {
       this.options.isSortLocally = true;
     }
 
-    if(this.options.sorted){
+    // Сохраняем копию данных, чтобы не мутировать исходный массив
+    if (this.options.data) {
+      this.options.data = [...this.options.data];
+    }
+
+    if (this.options.sorted) {
       this.sort(this.options.sorted.id, this.options.sorted.order);
     }
 
@@ -51,7 +57,7 @@ export default class SortableTable {
 
   // Шаблон компонента
   private get template() {
-    const headerContent =  this.renderHeader();
+    const headerContent = this.renderHeader();
     const bodyContent = this.renderRows();
 
     return `<div class="sortable-table">
@@ -72,12 +78,12 @@ export default class SortableTable {
   }
 
   // Рендер строк
-  private renderRows(){
-    return this.options.data?.map((dataItem)=>{
-      const columnItem =  this.headersConfig?.map((configItem)=>{
-        if(dataItem[configItem.id]) {
-          return configItem.template?
-            configItem.template(dataItem[configItem.id]):
+  private renderRows() {
+    return this.options.data?.map((dataItem) => {
+      const columnItem = this.headersConfig?.map((configItem) => {
+        if (dataItem[configItem.id]) {
+          return configItem.template ?
+            configItem.template(dataItem[configItem.id]) :
             `<div class="sortable-table__cell">${dataItem[configItem.id]}</div>`;
         }
       }).join('');
@@ -87,19 +93,19 @@ export default class SortableTable {
   }
 
   // Рендер заголовков
-  private renderHeader(){
-    return this.headersConfig?.map((configItem)=>{
+  private renderHeader() {
+    return this.headersConfig?.map((configItem) => {
       return `<div
                 class="sortable-table__cell"
                 data-id="${configItem.id}"
-                data-sortable="${configItem.sortable??false}">
+                data-sortable="${configItem.sortable ?? false}">
                     ${configItem.title}
               </div>`;
     }).join('');
   }
 
   // Сортировка
-  public sort (field: string, order: SortOrder) {
+  public sort(field: string, order: SortOrder) {
     if (this.options.isSortLocally) {
       this.sortOnClient(field, order);
     } else {
@@ -107,57 +113,81 @@ export default class SortableTable {
     }
   }
 
-  private sortOnServer(){
+  private sortOnServer() {
 
   }
 
-  private sortOnClient(field: string, order: SortOrder){
-    if(!this.element) return;
-    if(!this.bodyElement) return;
-    if(!this.headerElement) return;
-    if(!this.arrowElement) return;
-    if(!this.options.data) return;
+  private sortOnClient(field: string, order: SortOrder) {
+    if (!this.element) return;
+    if (!this.bodyElement) return;
+    if (!this.headerElement) return;
+    if (!this.options.data) return;
 
-    const directions = { asc: 1, desc: -1 };
+    const directions = {asc: 1, desc: -1};
     const column = this.headersConfig.find(item => item.id === field && item.sortable === true);
-    if(!column) return;
+    if (!column) return;
 
     const customSorting = column.customSorting;
 
-    this.options.data = [...this.options.data].sort((rowA, rowB) => {
+    // Создаем новый массив для сортировки, исходный остается нетронутым
+    const sortedData = [...this.options.data].sort((rowA, rowB) => {
       if (typeof rowA[field] === 'undefined' || typeof rowB[field] === 'undefined') return 0;
 
       if (column['sortType'] === 'string') {
         return (rowA[field] as string).localeCompare((rowB[field] as string), ["ru", "en"], {caseFirst: "upper"}) * directions[order];
       } else if (column['sortType'] === 'number') {
         return ((rowA[field] as number) - (rowB[field] as number)) * directions[order];
-      } else if(column['sortType'] === 'custom' && customSorting) {
+      } else if (column['sortType'] === 'custom' && customSorting) {
         return customSorting(rowA, rowB) * directions[order];
       } else return 0;
     });
 
-    this.bodyElement.innerHTML = this.renderRows()??'';
-    this.headerElement.querySelectorAll('[data-order]')?.forEach(el => {
-      el.removeAttribute('data-order');
-      el.querySelector('[data-element="arrow"]')?.remove();
-    })
-    this.headerElement.querySelector<HTMLDivElement>(`[data-id="${field}"]`)?.setAttribute('data-order',order);
-    this.headerElement.querySelector<HTMLDivElement>(`[data-id="${field}"]`)?.append(this.arrowElement);
+    // Обновляем данные только для отображения
+    this.options.data = sortedData;
+    this.bodyElement.innerHTML = this.renderRows() ?? '';
+
+    // Обновляем состояние сортировки на заголовке
+    this.updateHeaderSortState(field, order);
+  }
+
+  private updateHeaderSortState(field: string, order: SortOrder) {
+    if (!this.headerElement) return;
+
+    // Удаляем стрелку с текущего столбца
+    if (this.currentSortedColumn) {
+      const arrowElement = this.currentSortedColumn.querySelector('[data-element="arrow"]');
+      if (arrowElement) {
+        arrowElement.remove();
+      }
+      this.currentSortedColumn.removeAttribute('data-order');
+    }
+
+    // Находим новый столбец и добавляем стрелку
+    const newColumn = this.headerElement.querySelector<HTMLDivElement>(`[data-id="${field}"]`);
+    if (newColumn) {
+      // Создаем новую стрелку, так как старая уже удалена
+      const newArrow = createElement(`<span data-element="arrow" class="sortable-table__sort-arrow">
+                                            <span class="sort-arrow"></span>
+                                      </span>`);
+      newColumn.setAttribute('data-order', order);
+      newColumn.append(newArrow);
+      this.currentSortedColumn = newColumn;
+    }
   }
 
   private onClick = (event: Event) => {
     const target = event.target as HTMLElement;
-    if(!("tagName" in target)) {
+    if (!("tagName" in target)) {
       return;
     }
 
     const column = target.closest('[data-id]') as HTMLElement;
-    if(!column) return;
+    if (!column) return;
 
     const field = column.getAttribute('data-id');
-    const order = column.getAttribute('data-order')==='desc'?'asc':'desc';
+    const order = column.getAttribute('data-order') === 'desc' ? 'asc' : 'desc';
 
-    if(!field){
+    if (!field) {
       return;
     }
 
@@ -165,15 +195,16 @@ export default class SortableTable {
   }
 
   // Метод для удаления компонента
-  public remove(){
-    if(!this.element) return;
+  public remove() {
+    if (!this.element) return;
     this.element.remove();
   }
 
   // Метод для очистки данных
-  public destroy(){
+  public destroy() {
     this.remove();
     this.headerElement?.removeEventListener("pointerdown", this.onClick);
     this.element = null;
+    this.currentSortedColumn = null;
   }
 }

@@ -1,7 +1,7 @@
 import { createElement } from "../../shared/utils/create-element";
 
 export default class Tooltip {
-  public element: HTMLElement | null = null;
+  public element!: HTMLElement;
   private static instance: Tooltip | null = null;
   private paddingTooltip: number = 10;
 
@@ -53,7 +53,13 @@ export default class Tooltip {
       return;
     }
 
-    const tooltip = target.dataset.tooltip;
+    // Используем closest для поиска элемента с data-tooltip среди родителей
+    const tooltipElement = target.closest('[data-tooltip]') as HTMLElement;
+    if (!tooltipElement) {
+      return;
+    }
+
+    const tooltip = tooltipElement.dataset.tooltip;
     if (!tooltip) {
       return;
     }
