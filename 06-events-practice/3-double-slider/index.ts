@@ -13,9 +13,9 @@ interface Options {
 }
 
 export default class DoubleSlider {
-  private element: HTMLElement;
-  private min: number;
-  private max: number;
+  public element: HTMLElement;
+  public min: number;
+  public max: number;
   private from: number;
   private to: number;
   private activeThumb: HTMLElement | null = null;
